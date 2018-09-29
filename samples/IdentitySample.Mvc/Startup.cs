@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Security.Claims;
 using System.Threading.Tasks;
@@ -6,6 +6,9 @@ using Amazon.DynamoDBv2;
 using Amazon.DynamoDBv2.DataModel;
 using AspNetCore.Identity.DynamoDB;
 using IdentitySample.Services;
+using Microsoft.AspNetCore.Authentication.Facebook;
+using Microsoft.AspNetCore.Authentication.Google;
+using Microsoft.AspNetCore.Authentication.Twitter;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Hosting;
@@ -29,28 +32,13 @@ namespace IdentitySample
 
 	public class Startup
 	{
-		private readonly IHostingEnvironment _env;
+		public IConfiguration Configuration { get; }
 
-		public Startup(IHostingEnvironment env)
+		public Startup(IConfiguration configuration)
 		{
-			// Set up configuration sources.
-			var builder = new ConfigurationBuilder()
-				.SetBasePath(env.ContentRootPath)
-				.AddJsonFile("appsettings.json", false, true)
-				.AddJsonFile($"appsettings.{env.EnvironmentName}.json", true);
-
-			if (env.IsDevelopment())
-			{
-				// For more details on using the user secret store see http://go.microsoft.com/fwlink/?LinkID=532709
-				builder.AddUserSecrets<Startup>();
-			}
-
-			builder.AddEnvironmentVariables();
-			Configuration = builder.Build();
-			_env = env;
+			Configuration = configuration;
 		}
-
-		public IConfigurationRoot Configuration { get; set; }
+	
 
 		/// <summary>
 		///     see:
@@ -67,18 +55,13 @@ namespace IdentitySample
 
 			services.Configure<IdentityOptions>(options =>
 			{
-				var dataProtectionPath = Path.Combine(_env.WebRootPath, "identity-artifacts");
-				options.Cookies.ApplicationCookie.AuthenticationScheme = "ApplicationCookie";
-				options.Cookies.ApplicationCookie.DataProtectionProvider = DataProtectionProvider.Create(dataProtectionPath);
+				//var dataProtectionPath = Path.Combine(_env.WebRootPath, "identity-artifacts");
+				//options.Cookies.ApplicationCookie.AuthenticationScheme = "ApplicationCookie";
+				//options.Cookies.ApplicationCookie.DataProtectionProvider = DataProtectionProvider.Create(dataProtectionPath);				
 				options.Lockout.AllowedForNewUsers = true;
 			});
 
-			// Services used by identity
-			services.AddAuthentication(options =>
-			{
-				// This is the Default value for ExternalCookieAuthenticationScheme
-				options.SignInScheme = new IdentityCookieOptions().ExternalCookieAuthenticationScheme;
-			});
+			
 
 			// Hosting doesn't add IHttpContextAccessor by default
 			services.TryAddSingleton<IHttpContextAccessor, HttpContextAccessor>();
@@ -86,10 +69,10 @@ namespace IdentitySample
 			services.AddOptions();
 			services.AddDataProtection();
 
-			services.TryAddSingleton<IdentityMarkerService>();
-			services.TryAddSingleton<IUserValidator<DynamoIdentityUser>, UserValidator<DynamoIdentityUser>>();
-			services.TryAddSingleton<IPasswordValidator<DynamoIdentityUser>, PasswordValidator<DynamoIdentityUser>>();
-			services.TryAddSingleton<IPasswordHasher<DynamoIdentityUser>, PasswordHasher<DynamoIdentityUser>>();
+			//services.TryAddSingleton<IdentityMarkerService>(); NOT SURE WHY THIS IS NEEDED
+			services.AddSingleton<IUserValidator<DynamoIdentityUser>, UserValidator<DynamoIdentityUser>>();
+			services.AddSingleton<IPasswordValidator<DynamoIdentityUser>, PasswordValidator<DynamoIdentityUser>>();
+			services.AddSingleton<IPasswordHasher<DynamoIdentityUser>, PasswordHasher<DynamoIdentityUser>>();
 			services.TryAddSingleton<ILookupNormalizer, UpperInvariantLookupNormalizer>();
 			services.TryAddSingleton<IdentityErrorDescriber>();
 			services.TryAddSingleton<ISecurityStampValidator, SecurityStampValidator<DynamoIdentityUser>>();
@@ -105,6 +88,27 @@ namespace IdentitySample
 			// Add application services.
 			services.AddTransient<IEmailSender, AuthMessageSender>();
 			services.AddTransient<ISmsSender, AuthMessageSender>();
+
+			services.AddAuthentication(options =>
+			{
+				// This is the Default value for ExternalCookieAuthenticationScheme
+				//	options.SignInScheme = new IdentityCookieOptions().ExternalCookieAuthenticationScheme;
+			})
+			.AddFacebook(options =>
+				{
+					options.AppId = "901611409868059";
+					options.AppSecret = "4aa3c530297b1dcebc8860334b39668b";
+				})
+				.AddGoogle(options =>
+				{
+					options.ClientId = "609695036148-vacck6ur8cf5sk0uv145pa962qfsdk6c.apps.googleusercontent.com";
+					options.ClientSecret = "VqJhjh9w_tvSahjzeOkWzv3n";
+				})
+				.AddTwitter(options =>
+				{
+					options.ConsumerKey = "BSdJJ0CrDuvEhpkchnukXZBUv";
+					options.ConsumerSecret = "xKUNuKhsRdHD03eLn67xhPAyE1wFFEndFo1X2UJaK2m1jdAxf4";
+				});
 		}
 
 		// This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
@@ -121,26 +125,8 @@ namespace IdentitySample
 			{
 				app.UseExceptionHandler("/Home/Error");
 			}
-			app.UseStaticFiles();
-
-			// To configure external authentication please see http://go.microsoft.com/fwlink/?LinkID=532715
-
-			app.UseIdentity()
-				.UseFacebookAuthentication(new FacebookOptions
-				{
-					AppId = "901611409868059",
-					AppSecret = "4aa3c530297b1dcebc8860334b39668b"
-				})
-				.UseGoogleAuthentication(new GoogleOptions
-				{
-					ClientId = "609695036148-vacck6ur8cf5sk0uv145pa962qfsdk6c.apps.googleusercontent.com",
-					ClientSecret = "VqJhjh9w_tvSahjzeOkWzv3n"
-				})
-				.UseTwitterAuthentication(new TwitterOptions
-				{
-					ConsumerKey = "BSdJJ0CrDuvEhpkchnukXZBUv",
-					ConsumerSecret = "xKUNuKhsRdHD03eLn67xhPAyE1wFFEndFo1X2UJaK2m1jdAxf4"
-				});
+			app.UseStaticFiles();			
+			app.UseAuthentication();			
 
 			app.UseMvc(routes =>
 			{
@@ -150,12 +136,12 @@ namespace IdentitySample
 			});
 
 			var options = app.ApplicationServices.GetService<IOptions<DynamoDbSettings>>();
-			var client = env.IsDevelopment()
-				? new AmazonDynamoDBClient(new AmazonDynamoDBConfig
-				{
-					ServiceURL = options.Value.ServiceUrl
-				})
-				: new AmazonDynamoDBClient();
+			var client = new AmazonDynamoDBClient(new AmazonDynamoDBConfig
+			{
+				RegionEndpoint = Amazon.RegionEndpoint.USEast1
+				//ServiceURL = options.Value.ServiceUrl
+			});				
+
 			var context = new DynamoDBContext(client);
 
 			var userStore = app.ApplicationServices
@@ -223,9 +209,14 @@ namespace IdentitySample
 
 				var userId = await UserManager.GetUserIdAsync(user);
 				var userName = await UserManager.GetUserNameAsync(user);
-				var id = new ClaimsIdentity(Options.Cookies.ApplicationCookieAuthenticationScheme,
-					Options.ClaimsIdentity.UserNameClaimType,
-					Options.ClaimsIdentity.RoleClaimType);
+
+				var id = new ClaimsIdentity("Cookies", Options.ClaimsIdentity.UserNameClaimType, Options.ClaimsIdentity.RoleClaimType);
+
+				//var id = new ClaimsIdentity(Options.Cookies.ApplicationCookieAuthenticationScheme,
+				//	Options.ClaimsIdentity.UserNameClaimType,
+				//	Options.ClaimsIdentity.RoleClaimType);
+
+
 				id.AddClaim(new Claim(Options.ClaimsIdentity.UserIdClaimType, userId));
 				id.AddClaim(new Claim(Options.ClaimsIdentity.UserNameClaimType, userName));
 				if (UserManager.SupportsUserSecurityStamp)

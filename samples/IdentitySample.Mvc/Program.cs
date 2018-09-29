@@ -1,4 +1,4 @@
-using System.IO;
+using Microsoft.AspNetCore;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Configuration;
 
@@ -8,17 +8,18 @@ namespace IdentitySample
 	{
 		public static void Main(string[] args)
 		{
-			var config = new ConfigurationBuilder().AddEnvironmentVariables("ASPNETCORE_").Build();
-
-			var host = new WebHostBuilder()
-				.UseKestrel()
-				.UseConfiguration(config)
-				.UseContentRoot(Directory.GetCurrentDirectory())
-				.UseIISIntegration()
-				.UseStartup<Startup>()
-				.Build();
-
-			host.Run();
+			BuildWebHost(args).Run();
 		}
+
+		public static IWebHost BuildWebHost(string[] args) =>
+		   WebHost.CreateDefaultBuilder(args)
+			   .UseStartup<Startup>()
+			  .ConfigureAppConfiguration((hostContext, config) =>
+			  {
+				  // delete all default configuration providers
+				  config.Sources.Clear();
+				  config.AddJsonFile("appsettings.json", optional: true);
+			  })
+			  .Build();
 	}
 }

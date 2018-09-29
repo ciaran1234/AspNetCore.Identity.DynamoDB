@@ -281,9 +281,9 @@ namespace IdentitySamples.Controllers
 				return View("Error");
 			}
 			var userLogins = await _userManager.GetLoginsAsync(user);
-			var otherLogins =
-				_signInManager.GetExternalAuthenticationSchemes()
-					.Where(auth => userLogins.All(ul => auth.AuthenticationScheme != ul.LoginProvider))
+			var otherLogins = (await
+				_signInManager.GetExternalAuthenticationSchemesAsync())
+					.Where(auth => userLogins.All(ul => auth.Name != ul.LoginProvider))
 					.ToList();
 			ViewData["ShowRemoveButton"] = user.PasswordHash != null || userLogins.Count > 1;
 			return View(new ManageLoginsViewModel
